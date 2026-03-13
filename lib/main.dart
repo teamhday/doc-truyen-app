@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const MyApp());
@@ -13,6 +14,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: "Đọc truyện",
+      debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(),
       home: const HomePage(),
     );
@@ -29,6 +31,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
 
   List stories = [];
+  List filtered = [];
+  TextEditingController search = TextEditingController();
 
   @override
   void initState() {
@@ -36,22 +40,38 @@ class _HomePageState extends State<HomePage> {
     loadStories();
   }
 
-  Future loadStories() async {
+  loadStories() async {
 
-    var res = await http.get(Uri.parse("https://xtruyen.vn"));
+    var res = await http.get(
+      Uri.parse("https://xtruyen.vn"),
+      headers: {"User-Agent": "Mozilla/5.0"}
+    );
 
     var document = parse(res.body);
 
-    var items = document.querySelectorAll(".story-item");
+    var items = document.querySelectorAll("h3 a");
+
+    stories = items.map((e){
+      return {
+        "title": e.text.trim(),
+        "link": e.attributes["href"]
+      };
+    }).toList();
 
     setState(() {
-      stories = items.map((e) {
-        return {
-          "title": e.querySelector("h3")?.text ?? "",
-          "link": e.querySelector("a")?.attributes["href"] ?? "",
-          "cover": e.querySelector("img")?.attributes["src"] ?? ""
-        };
-      }).toList();
+      filtered = stories;
+    });
+
+  }
+
+  searchStory(String text){
+
+    setState(() {
+      filtered = stories
+          .where((s)=>s["title"]
+          .toLowerCase()
+          .contains(text.toLowerCase()))
+          .toList();
     });
 
   }
@@ -60,60 +80,76 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Đọc truyện")),
-      body: ListView.builder(
-        itemCount: stories.length,
-        itemBuilder: (context,index){
 
-          var s = stories[index];
-
-          return ListTile(
-
-            leading: Image.network(
-              s["cover"],
-              width: 50,
-              fit: BoxFit.cover,
-            ),
-
-            title: Text(s["title"]),
-
-            onTap: (){
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context)=>StoryPage(
-                    title: s["title"],
-                    url: s["link"],
-                  ),
-                ),
-              );
-            },
-
-          );
-
-        },
+      appBar: AppBar(
+        title: const Text("Đọc truyện"),
       ),
+
+      body: Column(
+        children: [
+
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: TextField(
+              controller: search,
+              onChanged: searchStory,
+              decoration: const InputDecoration(
+                hintText: "Tìm truyện...",
+              ),
+            ),
+          ),
+
+          Expanded(
+            child: ListView.builder(
+              itemCount: filtered.length,
+              itemBuilder: (c,i){
+
+                return ListTile(
+
+                  title: Text(filtered[i]["title"]),
+
+                  onTap: (){
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChapterPage(
+                          url: filtered[i]["link"],
+                          title: filtered[i]["title"],
+                        ),
+                      ),
+                    );
+                  },
+
+                );
+
+              },
+            ),
+          )
+
+        ],
+      ),
+
     );
 
   }
 }
 
-class StoryPage extends StatefulWidget {
+class ChapterPage extends StatefulWidget {
 
-  final String title;
   final String url;
+  final String title;
 
-  const StoryPage({
+  const ChapterPage({
     super.key,
-    required this.title,
-    required this.url
+    required this.url,
+    required this.title
   });
 
   @override
-  State<StoryPage> createState() => _StoryPageState();
+  State<ChapterPage> createState() => _ChapterPageState();
 }
 
-class _StoryPageState extends State<StoryPage> {
+class _ChapterPageState extends State<ChapterPage> {
 
   List chapters = [];
 
@@ -123,9 +159,12 @@ class _StoryPageState extends State<StoryPage> {
     loadChapters();
   }
 
-  Future loadChapters() async {
+  loadChapters() async {
 
-    var res = await http.get(Uri.parse(widget.url));
+    var res = await http.get(
+      Uri.parse(widget.url),
+      headers: {"User-Agent": "Mozilla/5.0"}
+    );
 
     var document = parse(res.body);
 
@@ -133,11 +172,11 @@ class _StoryPageState extends State<StoryPage> {
 
     setState(() {
 
-      chapters = items.map((c){
+      chapters = items.map((e){
 
         return {
-          "title": c.text,
-          "link": c.attributes["href"]
+          "title": e.text,
+          "link": e.attributes["href"]
         };
 
       }).toList();
@@ -150,24 +189,28 @@ class _StoryPageState extends State<StoryPage> {
   Widget build(BuildContext context) {
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
-      body: ListView.builder(
-        itemCount: chapters.length,
-        itemBuilder: (context,index){
 
-          var c = chapters[index];
+      appBar: AppBar(
+        title: Text(widget.title),
+      ),
+
+      body: ListView.builder(
+
+        itemCount: chapters.length,
+
+        itemBuilder: (c,i){
 
           return ListTile(
 
-            title: Text(c["title"]),
+            title: Text(chapters[i]["title"]),
 
             onTap: (){
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context)=>ReaderPage(
-                    title: c["title"],
-                    url: c["link"],
+                  builder: (_) => ReaderPage(
+                    url: chapters[i]["link"],
+                    title: chapters[i]["title"],
                   ),
                 ),
               );
@@ -176,22 +219,23 @@ class _StoryPageState extends State<StoryPage> {
           );
 
         },
+
       ),
+
     );
 
   }
-
 }
 
 class ReaderPage extends StatefulWidget {
 
-  final String title;
   final String url;
+  final String title;
 
   const ReaderPage({
     super.key,
-    required this.title,
-    required this.url
+    required this.url,
+    required this.title
   });
 
   @override
@@ -200,7 +244,7 @@ class ReaderPage extends StatefulWidget {
 
 class _ReaderPageState extends State<ReaderPage> {
 
-  String content = "";
+  String content = "Đang tải...";
 
   @override
   void initState() {
@@ -208,16 +252,34 @@ class _ReaderPageState extends State<ReaderPage> {
     loadChapter();
   }
 
-  Future loadChapter() async {
+  loadChapter() async {
 
-    var res = await http.get(Uri.parse(widget.url));
+    SharedPreferences prefs =
+        await SharedPreferences.getInstance();
+
+    String? cached = prefs.getString(widget.url);
+
+    if(cached != null){
+      setState(() {
+        content = cached;
+      });
+      return;
+    }
+
+    var res = await http.get(
+      Uri.parse(widget.url),
+      headers: {"User-Agent": "Mozilla/5.0"}
+    );
 
     var document = parse(res.body);
 
-    var chapter = document.querySelector(".chapter-content");
+    var text =
+        document.querySelector(".chapter-content")?.text ?? "";
+
+    prefs.setString(widget.url, text);
 
     setState(() {
-      content = chapter?.text ?? "Không tải được chương";
+      content = text;
     });
 
   }
@@ -226,19 +288,30 @@ class _ReaderPageState extends State<ReaderPage> {
   Widget build(BuildContext context) {
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Text(
-          content,
-          style: const TextStyle(
-            fontSize: 18,
-            height: 1.6,
-          ),
-        ),
+
+      appBar: AppBar(
+        title: Text(widget.title),
       ),
+
+      body: Padding(
+
+        padding: const EdgeInsets.all(16),
+
+        child: SingleChildScrollView(
+
+          child: Text(
+            content,
+            style: const TextStyle(
+              fontSize: 20,
+              height: 1.8,
+            ),
+          ),
+
+        ),
+
+      ),
+
     );
 
   }
-
 }

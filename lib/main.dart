@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:html/parser.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 void main() {
   runApp(const MyApp());
@@ -13,49 +12,29 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: HomePage(),
+      home: WebPage(),
     );
   }
 }
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class WebPage extends StatefulWidget {
+  const WebPage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<WebPage> createState() => _WebPageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _WebPageState extends State<WebPage> {
 
-  List stories = [];
+  late WebViewController controller;
 
   @override
   void initState() {
     super.initState();
-    loadStories();
-  }
 
-  loadStories() async {
-
-    var res = await http.get(Uri.parse("https://xtruyen.vn"));
-
-    var document = parse(res.body);
-
-    var items = document.querySelectorAll(".story-item");
-
-    setState(() {
-
-      stories = items.map((e){
-
-        return {
-          "title": e.querySelector("h3")?.text ?? "",
-          "link": e.querySelector("a")?.attributes["href"] ?? ""
-        };
-
-      }).toList();
-
-    });
-
+    controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..loadRequest(Uri.parse("https://xtruyen.vn"));
   }
 
   @override
@@ -63,20 +42,12 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
 
-      appBar: AppBar(title: const Text("Đọc truyện")),
+      appBar: AppBar(
+        title: const Text("Đọc truyện"),
+      ),
 
-      body: ListView.builder(
-
-        itemCount: stories.length,
-
-        itemBuilder: (c,i){
-
-          return ListTile(
-            title: Text(stories[i]["title"]),
-          );
-
-        },
-
+      body: WebViewWidget(
+        controller: controller,
       ),
 
     );

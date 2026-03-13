@@ -5,11 +5,12 @@ on:
 
 jobs:
   build:
-
     runs-on: macos-latest
 
-    steps:
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+    steps:
       - uses: actions/checkout@v4
 
       - uses: subosito/flutter-action@v2
@@ -17,10 +18,4 @@ jobs:
           flutter-version: '3.16.0'
 
       - run: flutter pub get
-
       - run: flutter build ipa --release --no-codesign
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ios-ipa
-          path: build/ios/ipa/*.ipa
